@@ -1,0 +1,21 @@
+import cv2
+import os
+import time
+
+myPath = 'data/images'  # Raspberry Pi: '/home/pi/Desktop/data/images'
+cameraNo = 1
+cameraBrightness = 190
+moduleVal = 10  # SAVE EVERY ITH FRAME TO AVOID REPETITION
+minBlur = 500  # SMALLER VALUE MEANS MORE BLURRINESS PRESENT
+grayImage = False  # IMAGES SAVED COLORED OR GRAY
+saveData = True  # SAVE DATA FLAG
+showImage = True  # IMAGE DISPLAY FLAG
+imgWidth = 180
+imgHeight = 120
+
+global countFolder
+
+cap = cv2.VideoCapture(cameraNo)
+cap.set(3, 640)
+cap.set(4, 480)
+cap.set(10, cameraBrightness)

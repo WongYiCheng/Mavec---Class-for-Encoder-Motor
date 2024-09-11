@@ -104,23 +104,28 @@ class MotorController:
 
         self.pwm.ChangeDutyCycle(PWMval)
 
-    def update(self):
+    def update(self, speed):
+        # Convert speed (0-255) to desired RPM
+        desired_RPM = (speed / 255.0) * self.RPM_max
+
         t = time.time() * 1000  # current time in milliseconds
         self.Theta = self.EncoderCount / 900.0  # 900 pulses per revolution
 
         self.dt = (t - self.t_prev)  # time delta in milliseconds
 
-        self.RPM_d = self.RPM_max * (math.sin(2 * self.pi * 0.005 * t / 1000.0)) * self.sign(math.sin(2 * self.pi * 0.05 * t / 1000.0))
+        # Use the calculated desired RPM
+        self.RPM_d = desired_RPM
 
-        if t / 1000.0 > 100:
-            self.RPM_d = 0
+        self.RPM = (self.Theta - self.Theta_prev) / (self.dt / 1000.0) * 60  # calculate current RPM
 
-        self.RPM = (self.Theta - self.Theta_prev) / (self.dt / 1000.0) * 60
+        # Calculate error
         self.e = self.RPM_d - self.RPM
-        self.inte = self.inte_prev + (self.dt * (self.e + self.e_prev) / 2)
+        self.inte = self.inte_prev + (self.dt * (self.e + self.e_prev) / 2)  # update integral term
 
+        # PID control to calculate voltage
         self.V = self.kp * self.e + self.ki * self.inte + (self.kd * (self.e - self.e_prev) / self.dt)
 
+        # Clamp voltage to the allowed range
         if self.V > self.Vmax:
             self.V = self.Vmax
             self.inte = self.inte_prev
@@ -129,6 +134,7 @@ class MotorController:
             self.V = self.Vmin
             self.inte = self.inte_prev
 
+        # Write the voltage to the driver
         self.write_driver_voltage(self.V)
 
         # Update previous values
@@ -140,3 +146,7 @@ class MotorController:
     def cleanup(self):
         self.pwm.stop()
         GPIO.cleanup()
+
+# Usage example
+# motor_controller = MotorController()
+# motor_controller.update(128)  # Set speed to half (128/255)

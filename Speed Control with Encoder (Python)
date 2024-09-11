@@ -140,3 +140,17 @@ class MotorController:
     def cleanup(self):
         self.pwm.stop()
         GPIO.cleanup()
+
+    '''from motor_controller import MotorController
+    import time
+    
+    # Create the MotorController object
+    motor = MotorController()
+    
+    try:
+        while True:
+            motor.update()  # Call this regularly to update motor speed
+            time.sleep(0.05)  # 50 ms delay between updates
+    except KeyboardInterrupt:
+        motor.cleanup()  # Clean up GPIO on Ctrl+C'''
+

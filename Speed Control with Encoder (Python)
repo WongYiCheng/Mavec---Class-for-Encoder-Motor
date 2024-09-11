@@ -1,0 +1,142 @@
+import RPi.GPIO as GPIO
+import time
+import math
+
+class MotorController:
+    def __init__(self, kp=0.02, ki=0.00015, kd=0, interruptPinA=2, interruptPinB=3, PWMPin=6, DirPin1=7, DirPin2=8, RPM_max=230):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+
+        self.interruptPinA = interruptPinA
+        self.interruptPinB = interruptPinB
+        self.PWMPin = PWMPin
+        self.DirPin1 = DirPin1
+        self.DirPin2 = DirPin2
+
+        self.EncoderCount = 0
+        self.count = 0
+        self.count_prev = 0
+        self.RPM_max = RPM_max
+        self.pi = 3.1416
+        self.Vmax = 6
+        self.Vmin = -6
+        self.V = 0.1
+        self.e = 0
+        self.e_prev = 0
+        self.inte = 0
+        self.inte_prev = 0
+        self.Theta = 0
+        self.RPM = 0
+        self.RPM_d = 0
+        self.Theta_prev = 0
+        self.t_prev = 0
+        self.dt = 0
+
+        # Initialize GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.interruptPinA, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.interruptPinB, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.PWMPin, GPIO.OUT)
+        GPIO.setup(self.DirPin1, GPIO.OUT)
+        GPIO.setup(self.DirPin2, GPIO.OUT)
+
+        # Set up interrupt callbacks
+        GPIO.add_event_detect(self.interruptPinA, GPIO.BOTH, callback=self.ISR_EncoderA)
+        GPIO.add_event_detect(self.interruptPinB, GPIO.BOTH, callback=self.ISR_EncoderB)
+
+        # PWM setup
+        self.pwm = GPIO.PWM(self.PWMPin, 1000)  # 1 kHz frequency
+        self.pwm.start(0)  # Start PWM with 0 duty cycle
+
+    def ISR_EncoderA(self, channel):
+        PinB = GPIO.input(self.interruptPinB)
+        PinA = GPIO.input(self.interruptPinA)
+
+        if PinB == GPIO.LOW:
+            if PinA == GPIO.HIGH:
+                self.EncoderCount += 1
+            else:
+                self.EncoderCount -= 1
+        else:
+            if PinA == GPIO.HIGH:
+                self.EncoderCount -= 1
+            else:
+                self.EncoderCount += 1
+
+    def ISR_EncoderB(self, channel):
+        PinB = GPIO.input(self.interruptPinA)
+        PinA = GPIO.input(self.interruptPinB)
+
+        if PinA == GPIO.LOW:
+            if PinB == GPIO.HIGH:
+                self.EncoderCount -= 1
+            else:
+                self.EncoderCount += 1
+        else:
+            if PinB == GPIO.HIGH:
+                self.EncoderCount += 1
+            else:
+                self.EncoderCount -= 1
+
+    def sign(self, x):
+        if x > 0:
+            return 1
+        elif x < 0:
+            return -1
+        else:
+            return 0
+
+    def write_driver_voltage(self, V):
+        PWMval = int(100 * abs(V) / self.Vmax)  # PWM duty cycle calculation
+        if PWMval > 100:
+            PWMval = 100
+
+        if V > 0:
+            GPIO.output(self.DirPin1, GPIO.HIGH)
+            GPIO.output(self.DirPin2, GPIO.LOW)
+        elif V < 0:
+            GPIO.output(self.DirPin1, GPIO.LOW)
+            GPIO.output(self.DirPin2, GPIO.HIGH)
+        else:
+            GPIO.output(self.DirPin1, GPIO.LOW)
+            GPIO.output(self.DirPin2, GPIO.LOW)
+
+        self.pwm.ChangeDutyCycle(PWMval)
+
+    def update(self):
+        t = time.time() * 1000  # current time in milliseconds
+        self.Theta = self.EncoderCount / 900.0  # 900 pulses per revolution
+
+        self.dt = (t - self.t_prev)  # time delta in milliseconds
+
+        self.RPM_d = self.RPM_max * (math.sin(2 * self.pi * 0.005 * t / 1000.0)) * self.sign(math.sin(2 * self.pi * 0.05 * t / 1000.0))
+
+        if t / 1000.0 > 100:
+            self.RPM_d = 0
+
+        self.RPM = (self.Theta - self.Theta_prev) / (self.dt / 1000.0) * 60
+        self.e = self.RPM_d - self.RPM
+        self.inte = self.inte_prev + (self.dt * (self.e + self.e_prev) / 2)
+
+        self.V = self.kp * self.e + self.ki * self.inte + (self.kd * (self.e - self.e_prev) / self.dt)
+
+        if self.V > self.Vmax:
+            self.V = self.Vmax
+            self.inte = self.inte_prev
+
+        if self.V < self.Vmin:
+            self.V = self.Vmin
+            self.inte = self.inte_prev
+
+        self.write_driver_voltage(self.V)
+
+        # Update previous values
+        self.Theta_prev = self.Theta
+        self.t_prev = t
+        self.inte_prev = self.inte
+        self.e_prev = self.e
+
+    def cleanup(self):
+        self.pwm.stop()
+        GPIO.cleanup()

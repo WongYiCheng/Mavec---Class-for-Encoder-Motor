@@ -2,15 +2,15 @@ import RPi.GPIO as GPIO
 import time
 
 class RobocarControl:
-    def __init__(self, l_pwm_pin, r_pwm_pin, l_en_pin, r_en_pin, steering_pin):
+    def __init__(self):
         # Motor control pins
-        self.L_PWM = l_pwm_pin
-        self.R_PWM = r_pwm_pin
-        self.L_EN = l_en_pin
-        self.R_EN = r_en_pin
+        self.L_PWM = 12  # GPIO pin for Left Motor PWM
+        self.R_PWM = 16  # GPIO pin for Right Motor PWM
+        self.L_EN = 27   # GPIO pin for Left Motor Enable
+        self.R_EN = 17   # GPIO pin for Right Motor Enable
 
         # Steering control pin
-        self.STEERING_PIN = steering_pin
+        self.STEERING_PIN = 18  # GPIO pin for Servo Motor PWM
 
         # Setup GPIO mode
         GPIO.setmode(GPIO.BCM)
@@ -74,4 +74,17 @@ class RobocarControl:
         self.steering_pwm.stop()
         GPIO.cleanup()
 
+# Example usage of the class
+if __name__ == "__main__":
+    try:
+        # Create an instance of RobocarControl
+        car = RobocarControl()
 
+        # Example: Set motor speed to 50%, steering to 90 degrees (straight), and travel for 5 seconds
+        car.set_speed(50)
+        car.set_steering_angle(90)
+        car.travel_distance(5, 50)
+
+    finally:
+        # Clean up the GPIO setup
+        car.cleanup()

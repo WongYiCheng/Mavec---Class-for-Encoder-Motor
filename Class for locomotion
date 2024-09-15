@@ -1,0 +1,77 @@
+import RPi.GPIO as GPIO
+import time
+
+class RobocarControl:
+    def __init__(self, l_pwm_pin, r_pwm_pin, l_en_pin, r_en_pin, steering_pin):
+        # Motor control pins
+        self.L_PWM = l_pwm_pin
+        self.R_PWM = r_pwm_pin
+        self.L_EN = l_en_pin
+        self.R_EN = r_en_pin
+
+        # Steering control pin
+        self.STEERING_PIN = steering_pin
+
+        # Setup GPIO mode
+        GPIO.setmode(GPIO.BCM)
+
+        # Setup motor control pins
+        GPIO.setup(self.L_PWM, GPIO.OUT)
+        GPIO.setup(self.R_PWM, GPIO.OUT)
+        GPIO.setup(self.L_EN, GPIO.OUT)
+        GPIO.setup(self.R_EN, GPIO.OUT)
+        
+        # Setup steering control pin
+        GPIO.setup(self.STEERING_PIN, GPIO.OUT)
+
+        # Initialize PWM for motor and steering
+        self.motor_pwm = GPIO.PWM(self.L_PWM, 1000)  # 1kHz for motor
+        self.steering_pwm = GPIO.PWM(self.STEERING_PIN, 50)  # 50Hz for servo motor
+
+        # Start PWM with 0 duty cycle (stop)
+        self.motor_pwm.start(0)
+        self.steering_pwm.start(7.5)  # Starting in the middle (7.5% duty for 90 degrees)
+
+        # Enable the motor driver
+        GPIO.output(self.L_EN, GPIO.HIGH)
+        GPIO.output(self.R_EN, GPIO.HIGH)
+
+    def set_speed(self, speed):
+        """
+        Control motor speed by setting PWM duty cycle.
+        Speed value ranges from 0 to 100 (percentage of max speed).
+        """
+        if 0 <= speed <= 100:
+            self.motor_pwm.ChangeDutyCycle(speed)
+        else:
+            print("Speed must be between 0 and 100.")
+
+    def set_steering_angle(self, angle):
+        """
+        Control steering by adjusting the servo motor.
+        Angle value ranges from 0 to 180 degrees.
+        """
+        if 0 <= angle <= 180:
+            duty_cycle = 2.5 + (angle / 18)  # Convert angle to duty cycle (2.5% - 12.5%)
+            self.steering_pwm.ChangeDutyCycle(duty_cycle)
+        else:
+            print("Angle must be between 0 and 180 degrees.")
+
+    def travel_distance(self, duration, speed):
+        """
+        Travel a specific distance based on the speed for a given duration.
+        Duration is in seconds, and speed is the percentage of maximum speed.
+        """
+        self.set_speed(speed)
+        time.sleep(duration)
+        self.set_speed(0)  # Stop the motor after the travel duration
+
+    def cleanup(self):
+        """
+        Clean up the GPIO and PWM before exiting.
+        """
+        self.motor_pwm.stop()
+        self.steering_pwm.stop()
+        GPIO.cleanup()
+
+
